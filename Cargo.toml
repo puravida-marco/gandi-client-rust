@@ -1,0 +1,23 @@
+[package]
+name = "gandi-client"
+version = "1.0.0-alpha.6"
+edition = "2021"
+license = "MIT"
+description = "A short description of my package"
+homepage = "https://github.com/puravida-marco/gandi-client-rust"
+documentation = "https://github.com/puravida-marco/gandi-client-rust"
+repository = "https://github.com/puravida-marco/gandi-client-rust"
+readme = "README.md"
+exclude = [ ".github" ]
+
+[dependencies]
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+bytes = "1.5.0"
+
+[dev-dependencies]
+mockito = "0.30"
+tokio-test = "0.4"
+

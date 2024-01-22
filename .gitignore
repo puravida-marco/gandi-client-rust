@@ -12,3 +12,11 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
+
+# Semantic Release related temporary installation 
+node_modules
+package.json
+package-lock.json
+
+# Release process
+dist/

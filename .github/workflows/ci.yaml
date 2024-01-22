@@ -1,0 +1,153 @@
+---
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    env:
+      CARGO_INCREMENTAL: 0
+      RUSTFLAGS: -Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort
+      RUSTDOCFLAGS: -Cpanic=abort
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        id: rust-toolchain
+        with:
+          toolchain: nightly
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ steps.rust-toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+
+      # - if: ${{ !matrix.build.cross }}
+      - run: cargo check
+
+      # - if: ${{ !matrix.build.cross }}
+      # - uses: actions-rust-lang/rustfmt@v1
+
+      # - if: ${{ !matrix.build.cross }}
+      - run: rustup component add clippy-preview && cargo clippy --all-features
+
+  # Compile library and CLI binary
+  build:
+    name: Test ${{ matrix.build.target }}
+    runs-on: ${{ matrix.build.os }}
+    permissions:
+      checks: write
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          # alphabatized by target
+          # - os: macOS-latest
+          #   target: aarch64-apple-darwin
+          #   cross: true
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-gnu
+          #   cross: true
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-musl
+          #   cross: true
+          # - os: ubuntu-latest
+          #   target: i686-unknown-linux-gnu
+          #   cross: true
+          # - os: ubuntu-latest
+          #   target: i686-unknown-linux-musl
+          #   cross: true
+          # - os: macOS-latest
+          #   target: x86_64-apple-darwin
+          #   cross: false
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cross: false
+          # - os: ubuntu-latest
+          #   target: x86_64-unknown-linux-musl
+          #   cross: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build inputs
+        if: runner.os == 'Linux' && !matrix.build.cross
+        run: sudo apt install musl-tools
+
+      - name: Install build inputs
+        if: runner.os == 'Linux'
+        run: sudo apt install pkg-config libssl-dev
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        id: rust-toolchain
+        with:
+          toolchain: nightly
+          target: ${{ matrix.build.target }}
+
+      - if: matrix.build.cross
+        name: Install cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ steps.rust-toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - if: ${{ !matrix.build.cross }}
+        run: cargo test $CARGO_OPTIONS -- --include-ignored -Z unstable-options --report-time --format json | tee results.json;
+
+      # One test is ignored because it requires network access, which
+      # complicates building with the Nix flake. However, I don't know how to
+      # pass `-- --include-ignored` in a way that doesn't break cross! So for
+      # now, we ignore the ignored test when using `cross`.
+      - if: matrix.build.cross
+        run: cross test $CARGO_OPTIONS -- -Z unstable-options --report-time --format json | tee results.json;
+
+      - name: Prepare junit report
+        # if: ${{ !matrix.build.cross }}
+        id: cargo_reporter
+        uses: innoq/action-cargo-test-report@v1
+        with:
+          cargo-test-report-json: "results.json"
+
+      - name: Publish Test Report
+        # if: ${{ !matrix.build.cross }}
+        uses: mikepenz/action-junit-report@main
+        if: always() # always run even if the previous step fails
+        with:
+          check_name: Test Report ${{ matrix.build.target }}
+          fail_on_failure: true
+          require_tests: true
+          summary: ${{ steps.cargo_reporter.outputs.summary }}
