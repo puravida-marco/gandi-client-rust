@@ -1,0 +1,50 @@
+{
+  "branches": [
+    "+([0-9])?(.{+([0-9]),x}).x",
+    "main",
+    "next",
+    "next-major",
+    {
+      "name": "beta",
+      "prerelease": true
+    },
+    {
+      "name": "alpha",
+      "prerelease": true
+    }
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    ["@semantic-release-cargo/semantic-release-cargo"],
+    [
+      "semantic-release-major-tag",
+      {
+        "customTags": ["v${major}", "v${major}.${minor}"]
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "dist/x86_64-unknown-linux-gnu/gandi-client-x86_64-unknown-linux-gnu",
+            "label": "x86_64-unknown-linux-gnu"
+          },
+          {
+            "path": "dist/SHA256SUMS.txt",
+            "label": "SHA256SUMS.txt"
+          }
+        ],
+        "assignees": ["@puravida-marco"]
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["Cargo.toml"]
+      }
+    ]
+  ]
+}
